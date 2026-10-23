@@ -23,8 +23,270 @@ const Marcoaven = (() => {
   };
 
   const currency = 'USD';
+   // BRICK 1G — Supabase connection
+  const SUPABASE_URL = 'https://iysidtzvxqnjfxzhbkxw.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_4cNfJ8bP1xj2BRB4AfM_yg_32k4GT6h';
 
-  const products = [
+  const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+  ); 
+
+  // BRICK 10A — Separate customer messaging authentication
+const customerChatClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      storageKey: 'marcoaven_customer_chat_auth',
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+console.log(
+  'BRICK 10A — Separate customer chat client initialized.'
+);
+
+  // BRICK 10 — Ensure anonymous customer authentication
+async function ensureCustomerMessageUser() {
+  try {
+    // Reuse the current authenticated user if available.
+    const {
+      data: { user: existingUser },
+      error: userError
+  } = await customerChatClient.auth.getUser();  
+
+    if (userError) {
+      console.warn(
+        'BRICK 10 — Could not retrieve current user:',
+        userError.message
+      );
+    }
+
+    // Reuse an existing user unless it is the current seller.
+    if (existingUser) {
+      console.log(
+        'BRICK 10 — Reusing authenticated customer:',
+        existingUser.id
+      );
+
+      return existingUser;
+    }
+
+    // Create an anonymous customer session for guest messaging.
+    const {
+      data,
+      error
+    } = await customerChatClient.auth.signInAnonymously();
+
+    if (error) {
+      console.error(
+        'BRICK 10 — Anonymous sign-in failed:',
+        error.message
+      );
+
+      return null;
+    }
+
+    if (!data?.user) {
+      console.error(
+        'BRICK 10 — No user returned after anonymous sign-in.'
+      );
+
+      return null;
+    }
+
+    console.log(
+      'BRICK 10 — Anonymous customer authenticated:',
+      data.user.id
+    );
+
+    return data.user;
+  } catch (error) {
+    console.error(
+      'BRICK 10 — Authentication error:',
+      error
+    );
+
+    return null;
+  }
+}
+
+  // BRICK 11 — Find or create a customer-seller conversation
+async function getCustomerConversation(sellerId) {
+  try {
+    if (!sellerId) {
+      console.error('BRICK 11 — Missing seller ID.');
+      return null;
+    }
+
+    // Authenticate the guest customer.
+    const buyer = await ensureCustomerMessageUser();
+
+    if (!buyer?.id) {
+      console.error('BRICK 11 — Customer authentication failed.');
+      return null;
+    }
+
+    // Do not allow a seller to start a customer conversation
+// with their own seller account.
+if (String(buyer.id) === String(sellerId)) {
+  console.error(
+    'BRICK 11 — Customer and seller IDs are identical.'
+  );
+  return null;
+}
+
+console.log('BRICK 11B — Customer chat identity check:', {
+  buyerId: buyer.id,
+  sellerId,
+  usingSeparateChatClient: true
+});
+
+    // Verify that Supabase has an active session.
+    const {
+      data: { user: sessionUser },
+      error: sessionError
+    } = await customerChatClient.auth.getUser();
+
+    if (sessionError || !sessionUser?.id) {
+      console.error(
+        'BRICK 11 — No active customer session.',
+        sessionError?.message || ''
+      );
+      return null;
+    }
+
+    const buyerId = sessionUser.id;
+
+    console.log('BRICK 11C — Customer session comparison:', {
+  helperBuyerId: buyer.id,
+  sessionBuyerId: buyerId,
+  idsMatch: String(buyer.id) === String(buyerId)
+});
+
+    // Look for an existing conversation between this customer
+    // and this seller.
+    const {
+      data: existingConversation,
+      error: lookupError
+    } = await customerChatClient
+  .from('conversations')
+      .select('id,buyer_id,seller_id,created_at,updated_at')
+      .eq('buyer_id', buyerId)
+      .eq('seller_id', sellerId)
+      .limit(1)
+      .maybeSingle();
+
+    if (lookupError) {
+      console.error(
+        'BRICK 11 — Conversation lookup failed:',
+        lookupError.message
+      );
+      return null;
+    }
+
+    if (existingConversation) {
+      console.log(
+        'BRICK 11 — Existing conversation found:',
+        existingConversation.id
+      );
+
+      return existingConversation;
+    }
+
+    // Create a conversation if one does not already exist.
+    const {
+      data: newConversation,
+      error: insertError
+    } = await customerChatClient
+      .from('conversations')
+      .insert({
+        buyer_id: buyerId,
+        seller_id: sellerId
+      })
+      .select('id,buyer_id,seller_id,created_at,updated_at')
+      .single();
+
+    if (insertError) {
+      console.error(
+        'BRICK 11 — Conversation creation failed:',
+        insertError.message
+      );
+      return null;
+    }
+
+    console.log(
+      'BRICK 11 — New conversation created:',
+      newConversation.id
+    );
+
+    return newConversation;
+
+  } catch (error) {
+    console.error('BRICK 11 — Unexpected error:', error);
+    return null;
+  }
+}
+
+    // BRICK 1J — Inspect Nexodra product fields
+  supabaseClient
+    .from('products')
+    .select('*')
+    .eq('published', true)
+    .limit(1)
+    .then(({ data, error }) => {
+      if (error) {
+        console.error('MARCOAVEN PRODUCT INSPECTION FAILED:', error.message);
+        return;
+      }
+
+      console.log(
+  'MARCOAVEN PRODUCT FIELD NAMES:',
+  JSON.stringify(Object.keys(data[0] || {}))
+);
+      console.log('MARCOAVEN FIRST PRODUCT:', data[0]);
+    });
+
+  // BRICK 2D — Check seller video covers
+supabaseClient
+  .from('stores')
+  .select('id, owner_id, name, cover_video_url')
+  .not('cover_video_url', 'is', null)
+  .then(({ data, error }) => {
+    if (error) {
+      console.error(
+        'MARCOAVEN SELLER VIDEO CHECK FAILED:',
+        error.message
+      );
+      return;
+    }
+
+    const sellersWithVideos = (data || []).filter(
+      (store) =>
+        typeof store.cover_video_url === 'string' &&
+        store.cover_video_url.trim() !== ''
+    );
+
+    console.log(
+      'MARCOAVEN SELLERS WITH VIDEO COVERS:',
+      sellersWithVideos.length
+    );
+
+    console.log(
+      'MARCOAVEN SELLER VIDEO DETAILS:',
+      sellersWithVideos.map((store) => ({
+        id: store.id,
+        name: store.name,
+        hasVideo: true
+      }))
+    );
+  });
+
+  let products = [
     {
       id: 'headphones-001',
       name: 'Wireless Headphones',
@@ -187,6 +449,167 @@ const Marcoaven = (() => {
     }
   ];
 
+    // BRICK 1L — Load products from Nexodra
+  async function loadNexodraProducts() {
+    try {
+      const { data, error } = await supabaseClient
+        .from('products')
+        .select(
+          'id, title, category, price, stock, emoji, image, description, published, owner_id'
+        )
+        .eq('published', true)
+        .order('title');
+
+      if (error) {
+        console.error('NEXODRA PRODUCTS FAILED:', error.message);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('NEXODRA PRODUCTS: No published products found.');
+        return;
+      }
+
+      const liveProducts = data.map((product) => ({
+        id: product.id,
+        name: product.title || 'Untitled product',
+        price: Number(product.price) || 0,
+        category: product.category || 'Other',
+        rating: 0,
+        reviews: 0,
+        storeId: product.owner_id,
+        storeName: 'Nexodra Seller',
+        description: product.description || '',
+        features: [],
+        color: '',
+        image: product.image || '',
+        emoji: product.emoji || '🛍️',
+        stock: Number(product.stock) || 0
+      }));
+
+      console.log(
+        'NEXODRA LIVE PRODUCTS LOADED:',
+        liveProducts.length
+      );
+
+      return liveProducts;
+    } catch (error) {
+      console.error('NEXODRA PRODUCTS ERROR:', error.message);
+    }
+  }
+
+ // ==========================================
+// MARCOAVEN — BRICK 1
+// Load a real Nexodra seller store
+// ==========================================
+
+async function loadNexodraStoreByOwnerId(ownerId) {
+  if (!ownerId) {
+    console.warn(
+      'MARCOAVEN STORE: Missing seller owner ID.'
+    );
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('stores')
+      .select('*')
+      .eq('owner_id', ownerId)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error(
+        'MARCOAVEN STORE: Could not load seller store:',
+        error.message
+      );
+      return null;
+    }
+
+    if (!data) {
+      console.warn(
+        'MARCOAVEN STORE: No store found for this seller.'
+      );
+      return null;
+    }
+
+    console.log(
+      'MARCOAVEN STORE: Seller store loaded:',
+      data.name
+    );
+
+    return data;
+
+  } catch (error) {
+    console.error(
+      'MARCOAVEN STORE: Unexpected error:',
+      error.message
+    );
+    return null;
+  }
+} 
+
+// ==========================================
+// BRICK 7A — OPEN LIVE NEXODRA STOREFRONT
+// ==========================================
+
+async function openNexodraStoreFromProduct() {
+  const product = getProduct(state.selectedProductId);
+
+  if (!product || !product.storeId) {
+    showToast('Seller information is unavailable.');
+    return;
+  }
+
+  showToast('Loading seller store...');
+
+  const store = await loadNexodraStoreByOwnerId(
+    product.storeId
+  );
+
+  if (
+    !store ||
+    state.selectedProductId !== product.id
+  ) {
+    showToast('Unable to load this seller store.');
+    return;
+  }
+
+  // Save the live seller record
+  window.marcoavenSelectedNexodraStore = store;
+
+// BRICK 8B — Inspect seller contact fields
+console.log(
+  'BRICK 8B — Seller store fields:',
+  Object.keys(store)
+);
+
+console.log(
+  'BRICK 8B — Seller contact data:',
+  store
+);
+  
+  // Prepare the storefront
+  state.selectedStoreId = store.owner_id || store.id;
+  state.storeTab = 'Products';
+
+  const searchInput = getScreen('store-search');
+
+  if (searchInput) {
+    searchInput.value = '';
+  }
+
+  console.log(
+    'BRICK 7A — Opening live seller storefront:',
+    store.name,
+    store.owner_id
+  );
+
+  // Open the internal Marcoaven storefront
+  navigate('store-screen');
+}
+  
   const stores = [
     {
       id: 'starlight-tech',
@@ -376,8 +799,9 @@ const Marcoaven = (() => {
     'cart-screen',
     'orders-screen',
     'account-screen',
-    'chat-screen'
-  ];
+    'chat-screen',
+    'edit-profile-screen'
+];
 
   function navigate(screenId, options = {}) {
     const target = getScreen(screenId);
@@ -577,20 +1001,146 @@ const Marcoaven = (() => {
       return;
     }
 
-    container.innerHTML = list.map(renderProductCard).join('');
+container.innerHTML = list.map(renderProductCard).join('');
+
+// BRICK 2K — Clear old seller videos
+container.querySelectorAll('.seller-video-ad').forEach(videoCard => {
+  videoCard.remove();
+});
+    
   }
 
-  function renderHome() {
-    let list = products;
+  // BRICK 2L — Render multiple seller videos safely
+let homeRenderToken = 0;
 
-    if (state.selectedCategory !== 'All') {
-      list = list.filter(product =>
-        product.category === state.selectedCategory
+async function renderHome() {
+  const currentToken = ++homeRenderToken;
+
+  let list = products;
+
+  if (state.selectedCategory !== 'All') {
+    list = list.filter(product =>
+      product.category === state.selectedCategory
+    );
+  }
+
+  const container = getScreen('featured-products');
+  if (!container) return;
+
+  // Render products first
+  renderProductGrid('featured-products', list);
+
+  // Seller videos appear only in the All category
+  if (state.selectedCategory !== 'All') return;
+
+  // Load seller video covers
+  const sellers = await loadSellerVideoCovers();
+
+  // Ignore outdated results from earlier renders
+  if (currentToken !== homeRenderToken) return;
+
+  if (!sellers.length || list.length < 4) return;
+
+  const productCards = Array.from(container.children).filter(
+    element => element.classList.contains('product-card')
+  );
+
+  if (productCards.length < 4) return;
+
+  // Insert videos after products 4, 8, 12, and so on
+  const positions = [];
+
+  for (let i = 3; i < productCards.length; i += 4) {
+    positions.push(i);
+  }
+
+  // Randomize seller order
+  const shuffledSellers = [...sellers];
+
+  for (let i = shuffledSellers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+
+    [shuffledSellers[i], shuffledSellers[j]] =
+      [shuffledSellers[j], shuffledSellers[i]];
+  }
+
+  const count = Math.min(
+    shuffledSellers.length,
+    positions.length
+  );
+
+  for (let i = 0; i < count; i++) {
+    if (currentToken !== homeRenderToken) return;
+
+    const videoCard = createSellerVideoCard(shuffledSellers[i]);
+
+    if (videoCard) {
+      productCards[positions[i]].after(videoCard);
+    }
+  }
+}
+
+
+  
+// BRICK 2E — Render Nexodra seller video card
+function createSellerVideoCard(store) {
+  if (!store || !store.cover_video_url) {
+    return null;
+  }
+
+  const card = document.createElement('section');
+  card.className = 'seller-video-ad';
+
+  const video = document.createElement('video');
+  video.src = store.cover_video_url;
+  video.autoplay = true;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.controls = false;
+  video.preload = 'metadata';
+  video.setAttribute('aria-label', 'Seller video cover');
+
+    // BRICK 2I — Video only, no seller name
+  card.appendChild(video);
+
+  video.play().catch(() => {
+    // Some browsers require playback to wait for user interaction.
+  });
+
+  return card;
+}
+
+// BRICK 2F — Load seller video covers
+async function loadSellerVideoCovers() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('stores')
+      .select('id, name, cover_video_url')
+      .not('cover_video_url', 'is', null);
+
+    if (error) {
+      console.error(
+        'MARCOAVEN SELLER VIDEOS FAILED:',
+        error.message
       );
+      return [];
     }
 
-    renderProductGrid('featured-products', list.slice(0, 8));
+    return (data || []).filter(
+      store =>
+        typeof store.cover_video_url === 'string' &&
+        store.cover_video_url.trim() !== ''
+    );
+  } catch (error) {
+    console.error(
+      'MARCOAVEN SELLER VIDEO ERROR:',
+      error.message
+    );
+    return [];
   }
+}
 
   /* =======================================================
      7. SEARCH AND SORTING
@@ -750,6 +1300,53 @@ const Marcoaven = (() => {
     }
 
     setText('detail-product-name', product.name);
+
+        // BRICK 3 — Load the seller logo for this product
+    const sellerButton = getScreen('visit-seller-store-button');
+    const sellerLogo = getScreen('detail-seller-logo');
+
+    if (sellerButton && sellerLogo) {
+      sellerButton.hidden = true;
+      sellerLogo.removeAttribute('src');
+      sellerLogo.alt = '';
+
+      if (product.storeId) {
+        loadNexodraStoreByOwnerId(product.storeId).then(store => {
+          // Make sure the customer is still viewing this product
+          if (
+            !store ||
+            state.selectedProductId !== product.id
+          ) {
+            return;
+          }
+
+          const logoUrl =
+            store.profile_image_url ||
+            store.logo_url ||
+            store.logo ||
+            '';
+
+          if (!logoUrl) {
+            console.warn(
+              'MARCOAVEN STORE: No seller logo found for:',
+              store.name
+            );
+            return;
+          }
+
+          sellerLogo.src = logoUrl;
+          sellerLogo.alt = store.name
+            ? `${store.name} logo`
+            : 'Seller logo';
+
+          sellerLogo.onerror = () => {
+            sellerButton.hidden = true;
+          };
+
+          sellerButton.hidden = false;
+        });
+      }
+    }
     setText('detail-product-rating', `★ ${product.rating} (${product.reviews} reviews)`);
     setText('detail-product-price', formatMoney(product.price));
     setText('detail-product-description', product.description);
@@ -1179,21 +1776,30 @@ const Marcoaven = (() => {
   }
 
   function editProfile() {
-    const newName = window.prompt('Enter your display name:', state.profile.name);
-    if (newName === null) return;
+  const nameInput = getScreen('edit-profile-name');
+  const emailInput = getScreen('edit-profile-email');
+  const phoneInput = getScreen('edit-profile-phone');
+  const countryInput = getScreen('edit-profile-country');
+  const cityInput = getScreen('edit-profile-city');
+  const message = getScreen('edit-profile-message');
 
-    const trimmedName = newName.trim();
-
-    if (!trimmedName) {
-      showToast('Name cannot be empty.');
-      return;
-    }
-
-    state.profile.name = trimmedName;
-    saveStorage(STORAGE_KEYS.profile, state.profile);
-    renderAccount();
-    showToast('Demo profile updated.');
+  if (!getScreen('edit-profile-screen') || !nameInput) {
+    showToast('Edit Profile screen not found. Check index.html.');
+    return;
   }
+
+  nameInput.value = state.profile.name || '';
+
+  if (emailInput) emailInput.value = state.profile.email || '';
+  if (phoneInput) phoneInput.value = state.profile.phone || '';
+  if (countryInput) countryInput.value = state.profile.country || '';
+  if (cityInput) cityInput.value = state.profile.city || '';
+
+  if (message) message.textContent = '';
+
+  state.previousScreen = 'account-screen';
+navigate('edit-profile-screen');
+}
 
   function handleAccountAction(action) {
     switch (action) {
@@ -1256,55 +1862,246 @@ const Marcoaven = (() => {
     state.storeTab = 'Products';
     navigate('store-screen');
   }
+  // ==========================================
+// BRICK 7A — RENDER LIVE SELLER STOREFRONT
+// ==========================================
 
-  function renderStore() {
-    const store = getStore(state.selectedStoreId);
-    if (!store) return;
+function renderStore() {
+  const liveStore = window.marcoavenSelectedNexodraStore;
 
-    setText('store-name', store.name);
-    setText('store-avatar', store.initial);
-    setText('store-rating', `★ ${store.rating} (${store.reviews} reviews)`);
+  // Check whether we are displaying a real Nexodra seller
+  const isLiveStore = Boolean(
+    liveStore &&
+    state.selectedStoreId === (liveStore.owner_id || liveStore.id)
+  );
 
-    const followButton = getScreen('follow-store-button');
-    const isFollowing = state.followedStores.includes(store.id);
+  // Use live seller data when available.
+  // Otherwise, preserve the existing demo stores.
+  const store = isLiveStore
+    ? liveStore
+    : getStore(state.selectedStoreId);
 
-    if (followButton) {
-      followButton.textContent = isFollowing ? 'Following' : 'Follow';
-      followButton.setAttribute('aria-pressed', String(isFollowing));
-    }
-
-    const productsForStore = products.filter(product =>
-      product.storeId === store.id
-    );
-
-    const query = (getScreen('store-search')?.value || '').toLowerCase();
-
-    const filtered = productsForStore.filter(product =>
-      product.name.toLowerCase().includes(query)
-    );
-
-    const grid = getScreen('store-products');
-
-    if (grid) {
-      if (state.storeTab === 'About') {
-        grid.innerHTML = `
-          <div class="empty-state">
-            <h2>${escapeHTML(store.name)}</h2>
-            <p>${escapeHTML(store.description)}</p>
-            <p style="margin-top:10px">★ ${store.rating} · ${escapeHTML(store.reviews)} reviews</p>
-          </div>
-        `;
-      } else {
-        renderProductGrid('store-products', filtered);
-      }
-    }
-
-    document.querySelectorAll('.store-tabs [role="tab"]')
-      .forEach(button => {
-        const active = button.textContent.trim() === state.storeTab;
-        button.setAttribute('aria-selected', String(active));
-      });
+  if (!store) {
+    showToast('Seller store could not be found.');
+    return;
   }
+
+  // Seller name
+  const storeName = store.name || 'Seller Store';
+
+  setText('store-name', storeName);
+
+  // BRICK 8B — Display live seller contact details
+const contactDetails = getScreen('store-contact-details');
+
+const locationElement = getScreen('store-location');
+const phoneElement = getScreen('store-phone');
+const emailElement = getScreen('store-email');
+
+if (contactDetails) {
+  contactDetails.hidden = false;
+}
+
+if (locationElement) {
+  locationElement.textContent = store.location || '';
+  locationElement.hidden = !store.location;
+}
+
+if (phoneElement) {
+  phoneElement.textContent = store.phone || '';
+  phoneElement.hidden = !store.phone;
+}
+
+if (emailElement) {
+  emailElement.textContent = store.email || '';
+  emailElement.hidden = !store.email;
+}
+
+  // Seller description
+  const description =
+    store.description ||
+    store.bio ||
+    store.about ||
+    'Welcome to our store. Explore our products and discover more.';
+
+    // BRICK 8A — Keep the bio on the About tab only
+  const mainDescription = getScreen('store-description');
+
+  if (mainDescription) {
+    mainDescription.textContent = '';
+    mainDescription.hidden = true;
+  }
+
+  setText('store-about-description', description);
+  setText('store-about-name', storeName);
+
+  // Seller rating, when available
+  const ratingElement = getScreen('store-rating');
+
+  if (ratingElement) {
+    if (store.rating) {
+      ratingElement.textContent = `★ ${store.rating} · Customer reviews`;
+    } else {
+      ratingElement.textContent = 'Discover products from this seller';
+    }
+  }
+
+  // Seller logo or profile image
+  const avatar = getScreen('store-avatar');
+
+  if (avatar) {
+    const logoUrl =
+      store.profile_image_url ||
+      store.logo_url ||
+      store.logo ||
+      store.avatar_url ||
+      '';
+
+    if (logoUrl) {
+      avatar.innerHTML = `
+        <img
+          src="${escapeHTML(logoUrl)}"
+          alt="${escapeHTML(storeName)} logo"
+        >
+      `;
+
+      avatar.querySelector('img').onerror = () => {
+        avatar.textContent = storeName.charAt(0).toUpperCase();
+      };
+    } else {
+      avatar.textContent = storeName.charAt(0).toUpperCase();
+    }
+  }
+
+  // Seller cover image, if available
+  const cover = getScreen('store-cover');
+
+  if (cover) {
+    const coverUrl =
+      store.cover_image_url ||
+      store.cover_url ||
+      store.banner_url ||
+      '';
+
+    if (coverUrl) {
+      const safeCoverUrl = coverUrl.replace(/["\\\r\n]/g, '');
+
+      cover.style.backgroundImage =
+        `linear-gradient(rgba(20,20,50,.15), rgba(20,20,50,.25)), url("${safeCoverUrl}")`;
+
+      cover.style.backgroundSize = 'cover';
+      cover.style.backgroundPosition = 'center';
+    } else {
+      cover.style.backgroundImage = '';
+    }
+  }
+
+  // Match products to the correct seller
+  const productsForStore = products.filter(product => {
+    if (isLiveStore) {
+      return product.storeId === store.owner_id;
+    }
+
+    return product.storeId === store.id;
+  });
+
+  // Apply the store-specific search
+  const query = (
+    getScreen('store-search')?.value || ''
+  ).trim().toLowerCase();
+
+  const filteredProducts = productsForStore.filter(product =>
+    product.name.toLowerCase().includes(query)
+  );
+
+  // Product count
+  setText(
+    'store-product-count',
+    `${filteredProducts.length} ${
+      filteredProducts.length === 1 ? 'product' : 'products'
+    }`
+  );
+
+  // Display products or an empty-state message
+  const grid = getScreen('store-products');
+  const emptyMessage = getScreen('store-empty-message');
+
+  if (grid) {
+    if (state.storeTab === 'About') {
+      grid.innerHTML = '';
+    } else {
+      renderProductGrid('store-products', filteredProducts);
+    }
+  }
+
+  if (emptyMessage) {
+    emptyMessage.hidden =
+      state.storeTab === 'About' ||
+      filteredProducts.length > 0;
+  }
+
+  // Switch between Products and About panels
+  const productsPanel = getScreen('store-products-panel');
+  const aboutPanel = getScreen('store-about-panel');
+
+  const productsTab = getScreen('store-products-tab');
+  const aboutTab = getScreen('store-about-tab');
+
+  if (productsPanel) {
+    productsPanel.hidden = state.storeTab !== 'Products';
+  }
+
+  if (aboutPanel) {
+    aboutPanel.hidden = state.storeTab !== 'About';
+  }
+
+  if (productsTab) {
+    const active = state.storeTab === 'Products';
+
+    productsTab.classList.toggle('active', active);
+    productsTab.setAttribute('aria-selected', String(active));
+  }
+
+  if (aboutTab) {
+    const active = state.storeTab === 'About';
+
+    aboutTab.classList.toggle('active', active);
+    aboutTab.setAttribute('aria-selected', String(active));
+  }
+
+  // Follow is handled separately for live sellers in a later brick.
+  const followButton = getScreen('follow-store-button');
+
+  if (followButton) {
+    if (isLiveStore) {
+      followButton.disabled = true;
+      followButton.textContent = 'Follow';
+      followButton.title = 'Seller following will be connected in a later brick.';
+    } else {
+      followButton.disabled = false;
+
+      const isFollowing = state.followedStores.includes(store.id);
+
+      followButton.textContent = isFollowing
+        ? 'Following'
+        : '+ Follow';
+
+      followButton.setAttribute(
+        'aria-pressed',
+        String(isFollowing)
+      );
+    }
+  }
+
+  console.log(
+    'BRICK 7A — Storefront rendered:',
+    storeName,
+    '| Live seller:',
+    isLiveStore,
+    '| Products:',
+    productsForStore.length
+  );
+}
 
   function toggleFollowStore() {
     const store = getStore(state.selectedStoreId);
@@ -1415,7 +2212,17 @@ const Marcoaven = (() => {
       const preview = last ? `${last.from === 'customer' ? 'You: ' : ''}${last.text}` : 'Start a conversation';
       return `
         <button type="button" class="chat-conversation" data-open-chat="${escapeHTML(chat.id)}" aria-label="Open chat with ${escapeHTML(chat.name)}">
-          <span class="chat-avatar chat-avatar-${escapeHTML(chat.color || 'purple')}">${escapeHTML(chat.initial)}</span>
+          <span class="chat-avatar chat-avatar-${escapeHTML(chat.color || 'purple')}">
+  ${
+    chat.avatarUrl
+      ? `<img
+          src="${escapeHTML(chat.avatarUrl)}"
+          alt="${escapeHTML(chat.name)}"
+          class="chat-list-avatar-image"
+        >`
+      : escapeHTML(chat.initial)
+  }
+</span>
           <span class="chat-conversation-main">
             <span class="chat-conversation-top"><strong>${escapeHTML(chat.name)}</strong><time>${escapeHTML(formatChatTime(last?.time || chat.updatedAt))}</time></span>
             <span class="chat-conversation-preview">${escapeHTML(preview)}</span>
@@ -1426,6 +2233,109 @@ const Marcoaven = (() => {
     }).join('');
   }
 
+// BRICK 12 — Open seller chat and connect its Supabase conversation
+async function openLiveSellerChat(store) {
+  if (!store || !store.owner_id) {
+    showToast('Seller information is unavailable.');
+    return;
+  }
+
+  const sellerId = String(store.owner_id);
+
+  // Reuse the local chat for this seller, if one exists.
+  let chat = state.chatMessages.find(
+    item => String(item.storeId) === sellerId
+  );
+
+  if (!chat) {
+    chat = {
+      id: `seller-${sellerId}`,
+      storeId: sellerId,
+      name: store.name || 'Seller',
+      initial: (store.name || 'S').charAt(0).toUpperCase(),
+      color: 'purple',
+      avatarUrl: store.profile_image_url || '',
+      online: false,
+      unread: 0,
+      updatedAt: Date.now(),
+      messages: [],
+      supabaseConversationId: null
+    };
+
+    state.chatMessages.push(chat);
+  } else {
+    // Refresh the seller's latest profile details.
+    chat.name = store.name || chat.name;
+    chat.initial = (store.name || 'S').charAt(0).toUpperCase();
+    chat.avatarUrl =
+      store.profile_image_url || chat.avatarUrl || '';
+
+    // Keep compatibility with chats created before Brick 12.
+    if (!Array.isArray(chat.messages)) {
+      chat.messages = [];
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(
+      chat,
+      'supabaseConversationId'
+    )) {
+      chat.supabaseConversationId = null;
+    }
+  }
+
+  state.activeChatId = chat.id;
+  chat.unread = 0;
+
+  saveChats();
+
+  // Open the existing conversation screen immediately.
+  navigate('conversation-screen');
+
+  console.log(
+    'BRICK 12 — Connecting seller chat:',
+    chat.name,
+    sellerId
+  );
+
+  // Find or create the real Supabase conversation.
+  const conversation = await getCustomerConversation(sellerId);
+
+  if (!conversation) {
+    console.error(
+      'BRICK 12 — Could not connect to the Supabase conversation.'
+    );
+
+    showToast(
+      'Chat opened, but messaging could not connect. Please try again.'
+    );
+
+    return;
+  }
+
+  // Save the real conversation ID for the upcoming message-loading brick.
+  chat.supabaseConversationId = conversation.id;
+  chat.supabaseBuyerId = conversation.buyer_id;
+  chat.storeId = String(conversation.seller_id);
+
+  saveChats();
+
+  console.log(
+    'BRICK 12 — Supabase conversation connected:',
+    conversation.id
+  );
+
+    // BRICK 14B — Start receiving new messages automatically.
+  subscribeToCustomerChatMessages(chat);
+
+    // BRICK 13 — Load the conversation's saved messages.
+  await loadSupabaseChatMessages(chat);
+
+  // Refresh the screen with the messages from Supabase.
+  renderConversation();
+  
+}
+
+  
   function openChat(chatId) {
     let chat = getChat(chatId);
     if (!chat) {
@@ -1444,14 +2354,87 @@ const Marcoaven = (() => {
     navigate('conversation-screen');
   }
 
+// BRICK 13 — Load saved messages from Supabase
+async function loadSupabaseChatMessages(chat) {
+  if (!chat?.supabaseConversationId || !chat.supabaseBuyerId) {
+    console.warn(
+      'BRICK 13 — Conversation details are missing; messages were not loaded.'
+    );
+    return false;
+  }
+
+  const {
+    data: remoteMessages,
+    error: loadError
+  } = await customerChatClient
+    .from('messages')
+    .select('id,conversation_id,sender_id,receiver_id,message,read,created_at')
+    .eq('conversation_id', chat.supabaseConversationId)
+    .order('created_at', { ascending: true });
+
+  if (loadError) {
+    console.error(
+      'BRICK 13 — Supabase message loading failed:',
+      loadError.message
+    );
+
+    showToast('Could not load chat messages. Please try again.');
+    return false;
+  }
+
+  // Convert Supabase rows into the format renderConversation() expects.
+  chat.messages = (remoteMessages || []).map(message => ({
+    id: message.id,
+    from:
+      String(message.sender_id) === String(chat.supabaseBuyerId)
+        ? 'customer'
+        : 'seller',
+    text: message.message,
+    time: message.created_at
+      ? new Date(message.created_at).getTime()
+      : Date.now()
+  }));
+
+  saveChats();
+
+  console.log(
+    'BRICK 13 — Supabase messages loaded:',
+    chat.messages.length
+  );
+
+  return true;
+}
+  
   function renderConversation() {
     const chat = getChat(state.activeChatId);
     if (!chat) {
       navigate('chat-screen');
       return;
     }
-    setText('conversation-avatar', chat.initial);
-    setText('conversation-seller-name', chat.name);
+    // BRICK 9A — Display seller logo and name
+const conversationAvatar = getScreen('conversation-avatar');
+
+if (conversationAvatar) {
+  const avatarUrl = chat.avatarUrl || '';
+
+  if (avatarUrl) {
+    conversationAvatar.innerHTML = `
+      <img
+        src="${escapeHTML(avatarUrl)}"
+        alt="${escapeHTML(chat.name)} logo"
+        style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+      >
+    `;
+
+    conversationAvatar.querySelector('img').onerror = () => {
+      conversationAvatar.textContent = chat.initial;
+    };
+  } else {
+    conversationAvatar.textContent = chat.initial;
+  }
+}
+
+setText('conversation-seller-name', chat.name);
     setText('conversation-seller-status', chat.online ? 'Online now' : 'Seller on Marcoaven');
 
     const messages = getScreen('conversation-messages');
@@ -1464,24 +2447,244 @@ const Marcoaven = (() => {
       messages.scrollTop = messages.scrollHeight;
     }
     const context = getScreen('conversation-product-context');
-    if (context) context.hidden = true;
-    renderChatInbox();
+if (context) context.hidden = true;
+
+// BRICK: Set up the expanding message input
+setupChatInputAutoResize();
+
+renderChatInbox();
   }
 
-  function sendChatMessage(event) {
-    event.preventDefault();
-    const input = getScreen('chat-message-input');
-    const text = input?.value.trim();
-    const chat = getChat(state.activeChatId);
-    if (!chat || !text) return;
-    const now = Date.now();
-    chat.messages.push({ id: `msg-${now}`, from: 'customer', text, time: now });
-    chat.updatedAt = now;
-    if (input) input.value = '';
-    saveChats();
-    renderConversation();
-    showToast('Demo message added to this conversation.');
+// BRICK 14A — Supabase Realtime message listener
+let customerChatRealtimeChannel = null;
+
+function subscribeToCustomerChatMessages(chat) {
+  if (!chat?.supabaseConversationId) {
+    console.warn(
+      'BRICK 14A — Cannot subscribe: conversation ID is missing.'
+    );
+    return;
   }
+
+  // Remove the previous listener before opening another conversation.
+  if (customerChatRealtimeChannel) {
+    customerChatClient.removeChannel(customerChatRealtimeChannel);
+    customerChatRealtimeChannel = null;
+  }
+
+  const conversationId = chat.supabaseConversationId;
+
+  customerChatRealtimeChannel = customerChatClient
+    .channel(`customer-chat-${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`
+      },
+      payload => {
+        const newMessage = payload.new;
+
+        // Confirm the event belongs to the active conversation.
+        const activeChat = getChat(state.activeChatId);
+
+        if (
+          !activeChat ||
+          String(activeChat.supabaseConversationId) !==
+            String(newMessage.conversation_id)
+        ) {
+          return;
+        }
+
+        // Avoid adding a message that is already displayed.
+        const alreadyExists = activeChat.messages.some(
+          message => String(message.id) === String(newMessage.id)
+        );
+
+        if (alreadyExists) return;
+
+        const messageTime = newMessage.created_at
+          ? new Date(newMessage.created_at).getTime()
+          : Date.now();
+
+        activeChat.messages.push({
+          id: newMessage.id,
+          from:
+            String(newMessage.sender_id) ===
+            String(activeChat.supabaseBuyerId)
+              ? 'customer'
+              : 'seller',
+          text: newMessage.message,
+          time: messageTime
+        });
+
+        // Keep the messages in chronological order.
+        activeChat.messages.sort(
+          (a, b) => Number(a.time) - Number(b.time)
+        );
+
+        activeChat.updatedAt = messageTime;
+
+        saveChats();
+        renderConversation();
+
+        console.log(
+          'BRICK 14A — Realtime message received:',
+          newMessage.id
+        );
+      }
+    )
+    .subscribe(status => {
+      console.log(
+        'BRICK 14A — Realtime subscription status:',
+        status
+      );
+
+      if (status === 'SUBSCRIBED') {
+        console.log(
+          'BRICK 14A — Listening for messages:',
+          conversationId
+        );
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error(
+          'BRICK 14A — Realtime connection issue:',
+          status
+        );
+      }
+    });
+}
+  
+// BRICK 12A — Send a customer message to Supabase
+async function sendChatMessage(event) {
+  event.preventDefault();
+
+  const input = getScreen('chat-message-input');
+  const text = input?.value.trim();
+  const chat = getChat(state.activeChatId);
+
+  if (!chat || !text) return;
+
+  // Confirm the remote conversation is connected.
+  if (
+    !chat.supabaseConversationId ||
+    !chat.supabaseBuyerId ||
+    !chat.storeId
+  ) {
+    console.error(
+      'BRICK 12A — Missing Supabase conversation details.'
+    );
+    showToast('Chat is not connected yet. Please reopen the conversation.');
+    return;
+  }
+
+  // Confirm the customer-chat session is still active.
+  const {
+    data: { user },
+    error: authError
+  } = await customerChatClient.auth.getUser();
+
+  if (authError || !user?.id) {
+    console.error(
+      'BRICK 12A — Customer session unavailable:',
+      authError?.message || ''
+    );
+    showToast('Your chat session is unavailable. Please reopen the chat.');
+    return;
+  }
+
+  // Do not allow a seller account to send as the customer.
+  if (String(user.id) !== String(chat.supabaseBuyerId)) {
+    console.error(
+      'BRICK 12A — Customer session does not match conversation buyer.'
+    );
+    showToast('Chat identity mismatch. Please reopen the conversation.');
+    return;
+  }
+
+  const messageToSend = text;
+
+  const {
+    data: insertedMessage,
+    error: insertError
+  } = await customerChatClient
+    .from('messages')
+    .insert({
+      conversation_id: chat.supabaseConversationId,
+      sender_id: user.id,
+      receiver_id: chat.storeId,
+      message: messageToSend,
+      read: false
+    })
+    .select('id,conversation_id,sender_id,receiver_id,message,read,created_at')
+    .single();
+
+  if (insertError) {
+    console.error(
+      'BRICK 12A — Supabase message insert failed:',
+      insertError.message
+    );
+    showToast('Message could not be sent. Please try again.');
+    return;
+  }
+
+  // Add the confirmed message to the local chat display.
+  const now = insertedMessage.created_at
+    ? new Date(insertedMessage.created_at).getTime()
+    : Date.now();
+
+  chat.messages.push({
+    id: insertedMessage.id,
+    from: 'customer',
+    text: insertedMessage.message,
+    time: now
+  });
+
+  chat.updatedAt = now;
+
+  if (input) {
+    input.value = '';
+    input.style.height = '48px';
+    input.style.overflowY = 'hidden';
+  }
+
+  saveChats();
+  renderConversation();
+
+  console.log(
+    'BRICK 12A — Supabase message sent:',
+    insertedMessage.id
+  );
+
+  showToast('Message sent.');
+}
+
+    
+  // BRICK: WhatsApp-style expanding message input
+function setupChatInputAutoResize() {
+  const input = getScreen('chat-message-input');
+
+  if (!input || input.tagName !== 'TEXTAREA') return;
+
+  function resizeInput() {
+    input.style.height = 'auto';
+
+    const maxHeight = 150;
+    input.style.height =
+      Math.min(input.scrollHeight, maxHeight) + 'px';
+
+    input.style.overflowY =
+      input.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }
+
+  input.addEventListener('input', resizeInput);
+
+  // Set the correct height when the conversation opens
+  resizeInput();
+}
 
   function startNewChat() {
     const choices = stores.map((store, index) => `${index + 1}. ${store.name}`).join('\n');
@@ -1543,7 +2746,39 @@ const Marcoaven = (() => {
     const button = target.closest('button');
     if (!button) return;
 
+    // BRICK: CREATE STORY BUTTON
+if (button.id === 'create-story-button') {
+  showToast('Story creation is coming soon!');
+  return;
+}
+
     if (handleChatClick(button)) return;
+
+// BRICK 9A — Open chat with the current live seller
+if (button.id === 'message-store-button') {
+  const store = window.marcoavenSelectedNexodraStore;
+
+  console.log(
+  'BRICK 12 DEBUG — Seller message button clicked:',
+  button.id
+);
+
+  if (!store || !store.owner_id) {
+    showToast('Seller information is unavailable.');
+    return;
+  }
+
+  // Open a conversation associated with this seller
+  openLiveSellerChat(store);
+
+  return;
+}
+    
+    // Edit Profile back button
+if (button.id === 'edit-profile-back') {
+    navigate('account-screen');
+    return;
+}
 
     if (button.dataset.go) {
       navigate(button.dataset.go);
@@ -1662,9 +2897,21 @@ const Marcoaven = (() => {
     }
 
     if (button.id === 'edit-profile-button') {
-      editProfile();
-      return;
-    }
+  console.log('TEST 1: Edit Profile button clicked');
+  console.log(
+    'TEST 2: Edit Profile screen found:',
+    !!document.getElementById('edit-profile-screen')
+  );
+
+  editProfile();
+
+  console.log(
+    'TEST 3: Edit Profile screen hidden:',
+    document.getElementById('edit-profile-screen')?.hidden
+  );
+
+  return;
+}
 
     if (button.id === 'follow-store-button') {
       toggleFollowStore();
@@ -1784,8 +3031,22 @@ const Marcoaven = (() => {
     document.addEventListener('input', handleInput);
     document.addEventListener('submit', handleSubmit);
 
-    updateCartBadge();
+        updateCartBadge();
     renderHome();
+
+    // BRICK 1N — Load live Nexodra products
+    loadNexodraProducts().then((liveProducts) => {
+      if (!liveProducts || liveProducts.length === 0) return;
+
+      products = liveProducts;
+      renderHome();
+
+      console.log(
+        'MARCOAVEN HOMEPAGE UPDATED:',
+        products.length,
+        'Nexodra products'
+      );
+    });
 
     const splash = getScreen('splash-screen');
     const onboarding = getScreen('onboarding-screen');
@@ -1796,16 +3057,312 @@ const Marcoaven = (() => {
     initializeWelcome();
   }
 
-  return {
+     return {
     initialize,
     navigate,
     products,
     stores,
     getCartQuantity,
-    getCartTotal
+    getCartTotal,
+    openNexodraStoreFromProduct
   };
+
 })();
 
 document.addEventListener('DOMContentLoaded', () => {
+  alert('NEW APP.JS IS RUNNING');
   Marcoaven.initialize();
 });
+
+/* =========================================
+   MARCOAVEN — NOTIFICATIONS BRICK 3
+========================================= */
+
+(function initMarcoavenNotifications() {
+    const openButton =
+        document.getElementById('openNotificationsBtn');
+
+    const screen =
+        document.getElementById('notificationsScreen');
+
+    const backButton =
+        document.getElementById('notificationsBackBtn');
+
+    const list =
+        document.getElementById('notificationsList');
+
+    const count =
+        document.getElementById('notificationsCount');
+
+    const markReadButton =
+        document.getElementById('markAllNotificationsReadBtn');
+
+    if (!openButton || !screen) {
+        console.warn(
+            'Notifications: button or screen not found.'
+        );
+        return;
+    }
+
+    const STORAGE_KEY = 'marcoaven_notifications_v1';
+
+    let activeFilter = 'all';
+
+    function loadNotifications() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.warn(
+                'Notifications could not be loaded.',
+                error
+            );
+
+            return [];
+        }
+    }
+
+    let notifications = loadNotifications();
+
+    function saveNotifications() {
+        try {
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(notifications)
+            );
+        } catch (error) {
+            console.warn(
+                'Notifications could not be saved.',
+                error
+            );
+        }
+    }
+
+    function updateCount() {
+        if (!count) return;
+
+        const unread = notifications.filter(
+            item => !item.read
+        ).length;
+
+        count.textContent = `${unread} unread`;
+    }
+
+    function renderNotifications() {
+        if (!list) return;
+
+        updateCount();
+
+        const filtered = notifications.filter(item => {
+            if (
+                activeFilter === 'unread' &&
+                item.read
+            ) {
+                return false;
+            }
+
+            if (
+                activeFilter === 'orders' &&
+                item.type !== 'orders'
+            ) {
+                return false;
+            }
+
+            if (
+                activeFilter === 'products' &&
+                item.type !== 'products'
+            ) {
+                return false;
+            }
+
+            return true;
+        });
+
+        list.replaceChildren();
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'notifications-empty';
+
+            const heading = document.createElement('h2');
+
+            heading.textContent =
+                activeFilter === 'unread'
+                    ? 'No unread notifications'
+                    : 'You’re all caught up';
+
+            const paragraph = document.createElement('p');
+
+            paragraph.textContent =
+                'New store updates will appear here.';
+
+            empty.append(heading, paragraph);
+            list.appendChild(empty);
+
+            return;
+        }
+
+        filtered.forEach(item => {
+            const article =
+                document.createElement('article');
+
+            article.className =
+                `notification-item${item.read ? '' : ' unread'}`;
+
+            const icon =
+                document.createElement('div');
+
+            icon.className =
+                `notification-icon ${item.type || 'system'}`;
+
+            icon.textContent =
+                item.type === 'orders' ? '🛍️' :
+                item.type === 'products' ? '📦' : '🔔';
+
+            const content =
+                document.createElement('div');
+
+            content.className = 'notification-content';
+
+            const heading =
+                document.createElement('h3');
+
+            heading.textContent = item.title || 'Notification';
+
+            const message =
+                document.createElement('p');
+
+            message.textContent = item.message || '';
+
+            const time =
+                document.createElement('time');
+
+            time.className = 'notification-time';
+            time.textContent = item.time || '';
+
+            content.append(heading, message, time);
+
+            article.append(icon, content);
+
+            if (!item.read) {
+                const dot = document.createElement('span');
+
+                dot.className = 'notification-unread-dot';
+                dot.setAttribute('aria-label', 'Unread');
+
+                article.appendChild(dot);
+            }
+
+            article.addEventListener('click', () => {
+                item.read = true;
+                saveNotifications();
+                renderNotifications();
+            });
+
+            list.appendChild(article);
+        });
+    }
+
+    function openNotifications() {
+    console.log('Opening Notifications screen');
+
+    // Use Marcoaven's main navigation system.
+    Marcoaven.navigate('notificationsScreen');
+
+    screen.setAttribute('aria-hidden', 'false');
+
+    renderNotifications();
+
+    console.log(
+        'Notifications visible:',
+        !screen.hidden,
+        'Active:',
+        screen.classList.contains('active')
+    );
+}
+
+    function closeNotifications() {
+    screen.setAttribute('aria-hidden', 'true');
+
+    Marcoaven.navigate('home-screen');
+}
+
+   openButton.addEventListener('click', () => {
+    console.log('TEST 4: Notifications button clicked');
+    console.log(
+        'TEST 5: Notifications screen found:',
+        !!document.getElementById('notificationsScreen')
+    );
+
+    openNotifications();
+
+    console.log(
+        'TEST 6: Notifications screen hidden:',
+        document.getElementById('notificationsScreen')?.hidden
+    );
+}); 
+
+    if (backButton) {
+        backButton.addEventListener(
+            'click',
+            closeNotifications
+        );
+    }
+
+    document.querySelectorAll(
+        '[data-notification-filter]'
+    ).forEach(button => {
+        button.addEventListener('click', () => {
+            activeFilter =
+                button.dataset.notificationFilter;
+
+            document.querySelectorAll(
+                '[data-notification-filter]'
+            ).forEach(filterButton => {
+                const selected =
+                    filterButton === button;
+
+                filterButton.classList.toggle(
+                    'active',
+                    selected
+                );
+
+                filterButton.setAttribute(
+                    'aria-pressed',
+                    String(selected)
+                );
+            });
+
+            renderNotifications();
+        });
+    });
+
+    if (markReadButton) {
+        markReadButton.addEventListener('click', () => {
+            notifications.forEach(item => {
+                item.read = true;
+            });
+
+            saveNotifications();
+            renderNotifications();
+        });
+    }
+
+    renderNotifications();
+
+    console.log(
+        'marcoaven notifications initialized.'
+    );
+})();
+
+// BRICK 5 — Visit Store button
+const visitSellerStoreButton = document.getElementById(
+  'visit-seller-store-button'
+);
+
+if (visitSellerStoreButton) {
+  visitSellerStoreButton.addEventListener('click', () => {
+    Marcoaven.openNexodraStoreFromProduct();
+  });
+}

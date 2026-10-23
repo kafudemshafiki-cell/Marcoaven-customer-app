@@ -130,11 +130,14 @@
       <header class="screen-header">
         <h1>Marcoaven</h1>
         <div class="header-actions">
-          <button type="button" aria-label="Notifications"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button
+    type="button"
+    id="openNotificationsBtn"
+    aria-label="Notifications"
+><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
   <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
 </svg>
-</button>
           <!-- TOP BAR ACCOUNT BUTTON -->
 <button
   type="button"
@@ -253,7 +256,27 @@
       <div class="product-gallery" id="product-gallery"></div>
 
       <div class="product-detail-copy">
-        <h1 id="detail-product-name">Product name</h1>
+        <!-- BRICK 2 — Product title and seller store button -->
+<div class="product-title-store-row">
+
+  <h1 id="detail-product-name">Product name</h1>
+
+  <button
+    type="button"
+    id="visit-seller-store-button"
+    class="visit-seller-store-button"
+    aria-label="Visit seller store"
+    hidden
+  >
+    <img
+      id="detail-seller-logo"
+      src=""
+      alt=""
+    >
+    <span>Visit Store</span>
+  </button>
+
+</div>
         <p id="detail-product-rating" class="product-rating"></p>
         <p id="detail-product-price" class="product-price"></p>
         <p id="detail-product-description"></p>
@@ -419,41 +442,414 @@
       </nav>
     </section>
 
+    <!-- =========================================
+     MARCOAVEN — EDIT PROFILE SCREEN
+     BRICK 2
+========================================= -->
+
+<section
+    id="edit-profile-screen"
+    class="screen"
+    aria-labelledby="edit-profile-title"
+    hidden
+>
+
+    <!-- Header -->
+    <header class="edit-profile-header">
+
+        <button
+            type="button"
+            id="edit-profile-back"
+            class="edit-profile-back"
+            aria-label="Go back to account"
+        >
+            <span aria-hidden="true">←</span>
+        </button>
+
+        <h1 id="edit-profile-title">
+            Edit Profile
+        </h1>
+
+    </header>
+
+
+    <!-- Profile Photo -->
+    <div class="edit-profile-photo-section">
+
+        <h2>Your Profile Photo</h2>
+
+        <div class="edit-profile-avatar-wrapper">
+
+            <img
+                id="edit-profile-avatar"
+                src="assets/default-avatar.png"
+                alt="Profile photo preview"
+            >
+
+        </div>
+
+        <p class="edit-profile-photo-help">
+            Choose a photo that represents you.
+        </p>
+
+        <!-- Camera -->
+        <label
+            for="edit-profile-camera-input"
+            class="edit-profile-photo-button"
+        >
+            Take Photo
+        </label>
+
+        <input
+            type="file"
+            id="edit-profile-camera-input"
+            accept="image/*"
+            capture="user"
+            hidden
+        >
+
+        <!-- Gallery -->
+        <label
+            for="edit-profile-gallery-input"
+            class="edit-profile-photo-button"
+        >
+            Choose from Gallery
+        </label>
+
+        <input
+            type="file"
+            id="edit-profile-gallery-input"
+            accept="image/*"
+            hidden
+        >
+
+        <button
+            type="button"
+            id="edit-profile-remove-photo"
+            class="edit-profile-remove-photo"
+        >
+            Remove Photo
+        </button>
+
+    </div>
+
+
+    <!-- Image Cropper -->
+    <div
+        id="edit-profile-cropper"
+        class="edit-profile-cropper"
+        hidden
+    >
+
+        <h2>Adjust Your Photo</h2>
+
+        <div class="edit-profile-crop-preview">
+
+            <img
+                id="edit-profile-crop-image"
+                src=""
+                alt="Selected photo to crop"
+            >
+
+        </div>
+
+        <div class="edit-profile-crop-actions">
+
+            <button
+                type="button"
+                id="edit-profile-cancel-crop"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="button"
+                id="edit-profile-apply-crop"
+            >
+                Apply Photo
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- Profile Information -->
+    <form id="edit-profile-form">
+
+        <h2>Personal Information</h2>
+
+        <div class="edit-profile-field">
+
+            <label for="edit-profile-name">
+                Full Name
+            </label>
+
+            <input
+                type="text"
+                id="edit-profile-name"
+                name="fullName"
+                autocomplete="name"
+                maxlength="100"
+                placeholder="Enter your full name"
+                required
+            >
+
+        </div>
+
+
+        <div class="edit-profile-field">
+
+            <label for="edit-profile-email">
+                Email Address
+            </label>
+
+            <input
+                type="email"
+                id="edit-profile-email"
+                name="email"
+                autocomplete="email"
+                placeholder="Enter your email address"
+                readonly
+            >
+
+            <small>
+                Email changes may require account verification.
+            </small>
+
+        </div>
+
+
+        <div class="edit-profile-field">
+
+            <label for="edit-profile-phone">
+                Phone Number
+            </label>
+
+            <input
+                type="tel"
+                id="edit-profile-phone"
+                name="phone"
+                autocomplete="tel"
+                maxlength="30"
+                placeholder="Enter your phone number"
+            >
+
+        </div>
+
+
+        <h2>Location</h2>
+
+        <div class="edit-profile-field">
+
+            <label for="edit-profile-country">
+                Country
+            </label>
+
+            <input
+                type="text"
+                id="edit-profile-country"
+                name="country"
+                autocomplete="country-name"
+                maxlength="100"
+                placeholder="Enter your country"
+            >
+
+        </div>
+
+
+        <div class="edit-profile-field">
+
+            <label for="edit-profile-city">
+                City
+            </label>
+
+            <input
+                type="text"
+                id="edit-profile-city"
+                name="city"
+                autocomplete="address-level2"
+                maxlength="100"
+                placeholder="Enter your city"
+            >
+
+        </div>
+
+
+        <!-- Status Message -->
+        <p
+            id="edit-profile-message"
+            role="status"
+            aria-live="polite"
+        ></p>
+
+
+        <!-- Save -->
+        <button
+            type="submit"
+            id="edit-profile-save"
+        >
+            Save Changes
+        </button>
+
+        <button
+            type="button"
+            id="edit-profile-cancel"
+        >
+            Cancel
+        </button>
+
+    </form>
+
+</section>
+
+<!-- END MARCOAVEN EDIT PROFILE SCREEN -->
 
     <!-- ======================================
-         SCREEN 10 — SELLER STORE / STORE PROFILE
-    ======================================= -->
-    <section
-      id="store-screen"
-      class="screen store-screen"
-      aria-label="Seller store"
-      hidden
+     SCREEN 10 — SELLER STOREFRONT
+======================================= -->
+<section
+  id="store-screen"
+  class="screen store-screen"
+  aria-label="Seller storefront"
+  hidden
+>
+  <!-- Store cover -->
+  <header class="store-cover" id="store-cover">
+    <button
+      type="button"
+      class="store-back-button"
+      data-back
+      aria-label="Go back"
+    >‹</button>
+
+    <div class="store-cover-overlay">
+      <span class="store-cover-label">OFFICIAL STORE</span>
+    </div>
+  </header>
+
+  <!-- Seller identity -->
+  <section class="store-profile" aria-label="Seller information">
+    <div class="store-avatar" id="store-avatar">S</div>
+
+    <div class="store-profile-info">
+      <h1 id="store-name">Seller Store</h1>
+      <!-- BRICK 8B — Seller contact details -->
+<div id="store-contact-details" class="store-contact-details">
+  <p id="store-location"></p>
+  <p id="store-phone"></p>
+  <p id="store-email"></p>
+</div>
+    </div>
+  </section>
+
+  <!-- Store actions -->
+  <div class="store-actions">
+    <button
+      type="button"
+      id="message-store-button"
+      class="store-message-button"
     >
-      <header class="store-cover" id="store-cover">
-        <button type="button" data-back aria-label="Go back">‹</button>
-      </header>
+      <span aria-hidden="true">✉</span>
+      Message 
+    </button>
 
-      <section class="store-profile">
-        <div class="store-avatar" id="store-avatar">S</div>
+    <button
+      type="button"
+      id="follow-store-button"
+      class="store-follow-button"
+    >
+      + Follow
+    </button>
+  </div>
+
+  <!-- Store navigation -->
+  <div class="store-tabs" role="tablist" aria-label="Store sections">
+    <button
+      type="button"
+      class="store-tab active"
+      id="store-products-tab"
+      role="tab"
+      aria-selected="true"
+      aria-controls="store-products-panel"
+    >
+      Products
+    </button>
+
+    <button
+      type="button"
+      class="store-tab"
+      id="store-about-tab"
+      role="tab"
+      aria-selected="false"
+      aria-controls="store-about-panel"
+    >
+      About
+    </button>
+  </div>
+
+  <!-- Products panel -->
+  <section
+    id="store-products-panel"
+    class="store-panel"
+    role="tabpanel"
+    aria-labelledby="store-products-tab"
+  >
+    <label class="store-search-field">
+      <span aria-hidden="true">⌕</span>
+      <input
+        type="search"
+        id="store-search"
+        placeholder="Search this store..."
+        autocomplete="off"
+      >
+    </label>
+
+    <div class="store-products-heading">
+      <h2>Explore the collection</h2>
+      <span id="store-product-count">Products</span>
+    </div>
+
+    <div class="product-grid" id="store-products"></div>
+
+    <p id="store-empty-message" class="store-empty-message" hidden>
+      No products found in this store.
+    </p>
+  </section>
+
+  <!-- About panel -->
+  <section
+    id="store-about-panel"
+    class="store-panel store-about-panel"
+    role="tabpanel"
+    aria-labelledby="store-about-tab"
+    hidden
+  >
+    <h2>About this store</h2>
+    <p id="store-about-description">
+      Learn more about this seller and their products.
+    </p>
+
+    <div class="store-about-details">
+      <div class="store-about-detail">
+        <span class="store-detail-icon" aria-hidden="true">✓</span>
         <div>
-          <h1 id="store-name">Starlight Tech</h1>
-          <p id="store-rating">★ 4.7 · Customer reviews</p>
+          <strong>Seller information</strong>
+          <p id="store-about-name">Seller Store</p>
         </div>
-        <button type="button" id="follow-store-button">Follow</button>
-      </section>
-
-      <div class="store-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected="true">Products</button>
-        <button type="button" role="tab" aria-selected="false">About</button>
       </div>
 
-      <label class="search-field">
-        <input type="search" id="store-search" placeholder="Search this store...">
-      </label>
-
-      <div class="product-grid" id="store-products"></div>
-    </section>
-
+      <div class="store-about-detail">
+        <span class="store-detail-icon" aria-hidden="true">▦</span>
+        <div>
+          <strong>Product collection</strong>
+          <p>Explore the products available in this store.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</section>
+    
   <!-- =====================================================
      MARCOAVEN MESSAGES INBOX
 ====================================================== -->
@@ -480,6 +876,85 @@
       <span aria-hidden="true">＋</span>
     </button>
   </header>
+
+  <!-- BRICK: MARCOAVEN CHAT STORIES -->
+<section class="chat-stories" aria-label="Stories and people to follow">
+
+  <!-- Create Story -->
+  <button type="button" class="story-item create-story" id="create-story-button">
+    <span class="story-avatar create-story-avatar">
+      <span class="create-story-plus" aria-hidden="true">+</span>
+    </span>
+    <span class="story-name">Create</span>
+  </button>
+
+  <!-- Seller Story 1 -->
+  <button type="button" class="story-item" data-story-user="bby">
+    <span class="story-avatar story-ring">
+      <img
+        src="images/customer-communication.1png"
+        alt=""
+        class="story-photo"
+      >
+      <span class="story-follow" aria-hidden="true">+👤</span>
+    </span>
+    <span class="story-name">Bby ❤️ Ras...</span>
+  </button>
+
+  <!-- Seller Story 2 -->
+  <button type="button" class="story-item" data-story-user="elsa">
+    <span class="story-avatar story-ring">
+      <img
+        src="images/customer-communication.png"
+        alt=""
+        class="story-photo story-photo-grayscale"
+      >
+      <span class="story-follow" aria-hidden="true">+👤</span>
+    </span>
+    <span class="story-name">@ Fiky 💦...</span>
+  </button>
+
+<!-- Seller Story 3 -->
+  <button type="button" class="story-item" data-story-user="elsa">
+    <span class="story-avatar story-ring">
+      <img
+        src="images/customer-communication.png"
+        alt=""
+        class="story-photo story-photo-grayscale"
+      >
+      <span class="story-follow" aria-hidden="true">+👤</span>
+    </span>
+    <span class="story-name">@ Fiky 💦...</span>
+  </button>
+
+<!-- Seller Story 4 -->
+  <button type="button" class="story-item" data-story-user="elsa">
+    <span class="story-avatar story-ring">
+      <img
+        src="images/customer-communication.png"
+        alt=""
+        class="story-photo story-photo-grayscale"
+      >
+      <span class="story-follow" aria-hidden="true">+👤</span>
+    </span>
+    <span class="story-name">@ Fiky 💦...</span>
+  </button>
+  
+  <!-- Seller Story 5 -->
+  <button type="button" class="story-item" data-story-user="seller-three">
+    <span class="story-avatar story-ring">
+      <img
+        src="https://i.pravatar.cc/160?img=12"
+        alt=""
+        class="story-photo"
+      >
+      <span class="story-follow" aria-hidden="true">+👤</span>
+    </span>
+    <span class="story-name">...</span>
+  </button>
+
+</section>
+<!-- END BRICK: MARCOAVEN CHAT STORIES -->
 
   <!-- Search conversations -->
 
@@ -788,6 +1263,157 @@
 
 </section>  
 
+    <!-- =========================================
+     MARCOAVEN — NOTIFICATIONS SCREEN
+========================================= -->
+
+<section
+    id="notificationsScreen"
+    class="screen notifications-screen"
+    aria-labelledby="notificationsTitle"
+    aria-hidden="true"
+    hidden
+>
+    <header class="notifications-header">
+
+        <button
+            type="button"
+            id="notificationsBackBtn"
+            class="notifications-back-btn"
+            aria-label="Back to dashboard"
+        >
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <path d="m15 18-6-6 6-6"></path>
+            </svg>
+        </button>
+
+        <div class="notifications-heading">
+            <h1 id="notificationsTitle">Notifications</h1>
+            <p>Stay updated with your store.</p>
+        </div>
+
+        <button
+            type="button"
+            id="markAllNotificationsReadBtn"
+            class="notifications-mark-read"
+        >
+            Mark all read
+        </button>
+
+    </header>
+
+    <div class="notifications-summary">
+        <div>
+            <span class="notifications-summary-label">
+                Your updates
+            </span>
+            <strong id="notificationsCount">0 unread</strong>
+        </div>
+
+        <span class="notifications-summary-icon" aria-hidden="true">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M10 21h4"></path>
+            </svg>
+        </span>
+    </div>
+
+    <nav class="notifications-filters" aria-label="Filter notifications">
+
+        <button
+            type="button"
+            class="notification-filter active"
+            data-notification-filter="all"
+            aria-pressed="true"
+        >
+            All
+        </button>
+
+        <button
+            type="button"
+            class="notification-filter"
+            data-notification-filter="unread"
+            aria-pressed="false"
+        >
+            Unread
+        </button>
+
+        <button
+            type="button"
+            class="notification-filter"
+            data-notification-filter="orders"
+            aria-pressed="false"
+        >
+            Orders
+        </button>
+
+        <button
+            type="button"
+            class="notification-filter"
+            data-notification-filter="products"
+            aria-pressed="false"
+        >
+            Products
+        </button>
+
+    </nav>
+
+    <div
+        id="notificationsList"
+        class="notifications-list"
+        aria-live="polite"
+    >
+        <div class="notifications-empty">
+            <div class="notifications-empty-icon" aria-hidden="true">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M10 21h4"></path>
+                </svg>
+            </div>
+
+            <h2>You're all caught up</h2>
+
+            <p>
+                New store updates will appear here.
+            </p>
+        </div>
+    </div>
+
+</section>
+
+<!-- END MARCOAVEN NOTIFICATIONS SCREEN -->
+
 
     <!-- ======================================
          SHARED BOTTOM NAVIGATION
@@ -837,6 +1463,7 @@
 
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js" defer></script>
 </body>
 </html>
